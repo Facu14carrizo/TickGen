@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Ticket, Calendar, Hash, CheckCircle, Clock, Trash2, RefreshCcw } from 'lucide-react';
+import { Ticket, Calendar, Hash, CheckCircle, Clock, Trash2, RefreshCcw, Square, CheckSquare2 } from 'lucide-react';
 
 interface TicketWithEvent {
   id: string;
@@ -24,6 +24,8 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'used' | 'unused'>('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDeletingMultiple, setIsDeletingMultiple] = useState(false);
 
   useEffect(() => {
     fetchTickets();
@@ -51,11 +53,67 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
       const { error } = await supabase.from('tickets').delete().eq('id', Number(ticketId));
       if (error) throw error;
       await fetchTickets();
+      setSelectedIds(new Set());
     } catch (error) {
       console.error('Error deleting ticket:', error);
       alert('No se pudo eliminar la entrada. Intenta nuevamente.');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleToggleSelect = (ticketId: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(ticketId)) {
+        newSet.delete(ticketId);
+      } else {
+        newSet.add(ticketId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredTickets.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredTickets.map(t => t.id)));
+    }
+  };
+
+  const handleDeleteMultiple = async () => {
+    if (selectedIds.size === 0) return;
+
+    const count = selectedIds.size;
+    const confirmed = window.confirm(
+      `¿Seguro que deseas eliminar ${count} entrada${count > 1 ? 's' : ''}? Esta acción no se puede deshacer.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsDeletingMultiple(true);
+      const idsArray = Array.from(selectedIds).map(id => Number(id));
+      
+      // Borrar en lotes para mejor rendimiento
+      const batchSize = 10;
+      for (let i = 0; i < idsArray.length; i += batchSize) {
+        const batch = idsArray.slice(i, i + batchSize);
+        const { error } = await supabase
+          .from('tickets')
+          .delete()
+          .in('id', batch);
+        
+        if (error) throw error;
+      }
+
+      await fetchTickets();
+      setSelectedIds(new Set());
+    } catch (error) {
+      console.error('Error deleting multiple tickets:', error);
+      alert('No se pudieron eliminar las entradas. Intenta nuevamente.');
+    } finally {
+      setIsDeletingMultiple(false);
     }
   };
 
@@ -80,6 +138,11 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
     if (filter === 'unused') return !ticket.is_used;
     return true;
   });
+
+  // Limpiar selección cuando cambia el filtro
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [filter]);
 
   const stats = {
     total: tickets.length,
@@ -172,13 +235,25 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
               Utilizadas
             </button>
           </div>
-          <button
-            onClick={fetchTickets}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-700 text-gray-100 bg-gray-800 hover:bg-gray-700 transition-all text-sm sm:text-base"
-          >
-            <RefreshCcw className="w-4 h-4" />
-            Refrescar
-          </button>
+          <div className="flex items-center gap-2 sm:gap-3">
+            {selectedIds.size > 0 && (
+              <button
+                onClick={handleDeleteMultiple}
+                disabled={isDeletingMultiple}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-all text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-4 h-4" />
+                {isDeletingMultiple ? 'Eliminando...' : `Eliminar ${selectedIds.size}`}
+              </button>
+            )}
+            <button
+              onClick={fetchTickets}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-700 text-gray-100 bg-gray-800 hover:bg-gray-700 transition-all text-sm sm:text-base"
+            >
+              <RefreshCcw className="w-4 h-4" />
+              Refrescar
+            </button>
+          </div>
         </div>
 
         {filteredTickets.length === 0 ? (
@@ -192,6 +267,19 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
               <table className="min-w-full">
                 <thead>
                   <tr className="border-b-2 border-gray-700">
+                    <th className="text-left py-3 sm:py-4 px-2 sm:px-4 font-bold text-gray-300 text-xs sm:text-base w-12">
+                      <button
+                        onClick={handleSelectAll}
+                        className="flex items-center justify-center w-5 h-5 rounded border-2 border-gray-500 hover:border-blue-500 transition-colors"
+                        title={selectedIds.size === filteredTickets.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                      >
+                        {selectedIds.size === filteredTickets.length && filteredTickets.length > 0 ? (
+                          <CheckSquare2 className="w-4 h-4 text-blue-400" />
+                        ) : (
+                          <Square className="w-4 h-4 text-gray-400" />
+                        )}
+                      </button>
+                    </th>
                     <th className="text-left py-3 sm:py-4 px-2 sm:px-4 font-bold text-gray-300 text-xs sm:text-base">#</th>
                     <th className="text-left py-3 sm:py-4 px-2 sm:px-4 font-bold text-gray-300 text-xs sm:text-base">Evento</th>
                     <th className="text-left py-3 sm:py-4 px-2 sm:px-4 font-bold text-gray-300 text-xs sm:text-base hidden md:table-cell">Fecha Evento</th>
@@ -204,8 +292,23 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
                   {filteredTickets.map((ticket) => (
                     <tr
                       key={ticket.id}
-                      className="border-b border-gray-700 hover:bg-gray-750 transition-colors"
+                      className={`border-b border-gray-700 hover:bg-gray-750 transition-colors ${
+                        selectedIds.has(ticket.id) ? 'bg-blue-900/20' : ''
+                      }`}
                     >
+                      <td className="py-3 sm:py-4 px-2 sm:px-4">
+                        <button
+                          onClick={() => handleToggleSelect(ticket.id)}
+                          className="flex items-center justify-center w-5 h-5 rounded border-2 border-gray-500 hover:border-blue-500 transition-colors"
+                          title={selectedIds.has(ticket.id) ? 'Deseleccionar' : 'Seleccionar'}
+                        >
+                          {selectedIds.has(ticket.id) ? (
+                            <CheckSquare2 className="w-4 h-4 text-blue-400" />
+                          ) : (
+                            <Square className="w-4 h-4 text-gray-400" />
+                          )}
+                        </button>
+                      </td>
                       <td className="py-3 sm:py-4 px-2 sm:px-4">
                         <span className="font-semibold text-gray-300 text-xs sm:text-base">
                           #{ticket.ticket_number}
