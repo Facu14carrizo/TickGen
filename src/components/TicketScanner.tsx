@@ -2,8 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { QRScanner } from '../lib/qrScanner';
 import { supabase } from '../lib/supabase';
 import { 
-  Scan, CheckCircle, XCircle, Camera, RotateCcw, Search, 
-  History, TrendingUp, Clock, AlertTriangle, Zap, 
+  Scan, CheckCircle, XCircle, Camera, Search, 
+  History, Clock, AlertTriangle, Zap, 
   RefreshCw, Volume2, VolumeX, Hash
 } from 'lucide-react';
 
@@ -39,7 +39,8 @@ export default function TicketScanner({ onTicketValidated }: TicketScannerProps)
   const [isScanning, setIsScanning] = useState(false);
   const [scanner] = useState(() => new QRScanner());
   const [cameraFacing, setCameraFacing] = useState<FacingMode>('environment');
-  const [continuousMode, setContinuousMode] = useState(false);
+  // Modo continuo desactivado permanentemente
+  const continuousMode = false;
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
   const [manualSearch, setManualSearch] = useState('');
@@ -79,7 +80,7 @@ export default function TicketScanner({ onTicketValidated }: TicketScannerProps)
     }
   };
 
-  const playSound = (type: 'success' | 'error' | 'warning') => {
+  const playSound = (type: 'success' | 'error' | 'warning' | 'scan') => {
     if (!soundEnabled) return;
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -89,7 +90,15 @@ export default function TicketScanner({ onTicketValidated }: TicketScannerProps)
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
       
-      if (type === 'success') {
+      if (type === 'scan') {
+        // Sonido tipo "ding" cuando se detecta un QR
+        oscillator.type = 'sine';
+        oscillator.frequency.value = 600;
+        gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.15);
+      } else if (type === 'success') {
         oscillator.frequency.value = 800;
         gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
@@ -281,6 +290,10 @@ export default function TicketScanner({ onTicketValidated }: TicketScannerProps)
   };
 
   const handleScanSuccess = async (code: string) => {
+    // Reproducir sonido "ding" cuando se detecta un QR
+    playSound('scan');
+    vibrate(50); // Vibración corta al detectar
+    
     // Pausar el escaneo temporalmente para procesar el código
     if (continuousMode) {
       scanner.pauseScanning();
@@ -324,20 +337,6 @@ export default function TicketScanner({ onTicketValidated }: TicketScannerProps)
     }
   };
 
-  const toggleCameraFacing = () => {
-    if (isScanning) {
-      scanner.stopScanning();
-      setCameraFacing((prev) => {
-        const newFacing = prev === 'environment' ? 'user' : 'environment';
-        setTimeout(() => {
-          startScanning();
-        }, 100);
-        return newFacing;
-      });
-    } else {
-      setCameraFacing((prev) => (prev === 'environment' ? 'user' : 'environment'));
-    }
-  };
 
   const clearHistory = () => {
     setScanHistory([]);
@@ -457,11 +456,6 @@ export default function TicketScanner({ onTicketValidated }: TicketScannerProps)
                       <Zap className="w-3 h-3 sm:w-4 sm:h-4 animate-pulse" />
                       <span>Escaneando...</span>
                     </div>
-                    {continuousMode && (
-                      <div className="absolute bottom-2 sm:bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-2 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-semibold">
-                        Modo Continuo
-                      </div>
-                    )}
                   </>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
@@ -536,11 +530,11 @@ export default function TicketScanner({ onTicketValidated }: TicketScannerProps)
               )}
 
               {/* Controles */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                 {!isScanning ? (
                   <button
                     onClick={startScanning}
-                    className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 sm:py-4 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
+                    className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 sm:py-4 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
                   >
                     <Camera className="w-5 h-5 sm:w-6 sm:h-6" />
                     Iniciar Escaneo
@@ -548,43 +542,19 @@ export default function TicketScanner({ onTicketValidated }: TicketScannerProps)
                 ) : (
                   <button
                     onClick={stopScanning}
-                    className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-3 sm:py-4 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
+                    className="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-3 sm:py-4 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
                   >
                     <XCircle className="w-5 h-5 sm:w-6 sm:h-6" />
                     Detener Escaneo
                   </button>
                 )}
 
-                <button
-                  onClick={toggleCameraFacing}
-                  disabled={isScanning && !continuousMode}
-                  className="bg-gray-700 hover:bg-gray-600 text-gray-100 font-semibold py-3 sm:py-4 rounded-xl transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base flex items-center justify-center gap-2"
-                >
-                  <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="hidden sm:inline">{cameraFacing === 'environment' ? 'Cámara Frontal' : 'Cámara Trasera'}</span>
-                  <span className="sm:hidden">{cameraFacing === 'environment' ? 'Frontal' : 'Trasera'}</span>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                <button
-                  onClick={() => setContinuousMode(!continuousMode)}
-                  disabled={!isScanning}
-                  className={`py-2.5 sm:py-3 px-4 rounded-lg font-semibold transition-all text-xs sm:text-sm ${
-                    continuousMode
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  } disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
-                >
-                  <Zap className="w-4 h-4" />
-                  Modo Continuo {continuousMode ? 'ON' : 'OFF'}
-                </button>
                 {result && !isScanning && (
                   <button
                     onClick={resetScanner}
-                    className="bg-gray-700 hover:bg-gray-600 text-gray-200 font-semibold py-2.5 sm:py-3 rounded-lg transition-colors text-xs sm:text-sm flex items-center justify-center gap-2"
+                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-200 font-semibold py-3 sm:py-4 rounded-xl transition-colors text-sm sm:text-base flex items-center justify-center gap-2"
                   >
-                    <RefreshCw className="w-4 h-4" />
+                    <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
                     Escanear Otra
                   </button>
                 )}
@@ -592,8 +562,8 @@ export default function TicketScanner({ onTicketValidated }: TicketScannerProps)
 
               <div className="bg-blue-900 border-2 border-blue-700 rounded-xl p-3 sm:p-4">
                 <p className="text-xs sm:text-sm text-blue-200 font-medium leading-relaxed">
-                  <strong>💡 Instrucciones:</strong> Apunta la cámara hacia el código QR. 
-                  El modo continuo permite escanear múltiples entradas sin detener la cámara.
+                  <strong>💡 Instrucciones:</strong> Apunta la cámara hacia el código QR de la entrada. 
+                  La validación se realizará automáticamente.
                 </p>
               </div>
             </div>
