@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Ticket, Calendar, Hash, CheckCircle, Clock } from 'lucide-react';
+import { Ticket, Calendar, Hash, CheckCircle, Clock, Trash2 } from 'lucide-react';
 
 interface TicketWithEvent {
   id: string;
@@ -23,6 +23,7 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
   const [tickets, setTickets] = useState<TicketWithEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'used' | 'unused'>('all');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTickets();
@@ -40,6 +41,23 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  const handleDelete = async (ticketId: string) => {
+    const confirmed = window.confirm('¿Seguro que deseas eliminar esta entrada? Esta acción no se puede deshacer.');
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(ticketId);
+      const { error } = await supabase.from('tickets').delete().eq('id', ticketId);
+      if (error) throw error;
+      setTickets((prev) => prev.filter((ticket) => ticket.id !== ticketId));
+    } catch (error) {
+      console.error('Error deleting ticket:', error);
+      alert('No se pudo eliminar la entrada. Intenta nuevamente.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const fetchTickets = async () => {
     try {
@@ -170,6 +188,7 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
                     <th className="text-left py-3 sm:py-4 px-2 sm:px-4 font-bold text-gray-300 text-xs sm:text-base hidden md:table-cell">Fecha Evento</th>
                     <th className="text-left py-3 sm:py-4 px-2 sm:px-4 font-bold text-gray-300 text-xs sm:text-base">Estado</th>
                     <th className="text-left py-3 sm:py-4 px-2 sm:px-4 font-bold text-gray-300 text-xs sm:text-base hidden lg:table-cell">Usado el</th>
+                    <th className="text-right py-3 sm:py-4 px-2 sm:px-4 font-bold text-gray-300 text-xs sm:text-base">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -225,6 +244,16 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
                               minute: '2-digit',
                             })
                           : '-'}
+                      </td>
+                      <td className="py-3 sm:py-4 px-2 sm:px-4 text-right">
+                        <button
+                          onClick={() => handleDelete(ticket.id)}
+                          disabled={deletingId === ticket.id}
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-red-900 text-red-200 rounded-lg border border-red-700 hover:bg-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm"
+                        >
+                          <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                          {deletingId === ticket.id ? 'Eliminando...' : 'Eliminar'}
+                        </button>
                       </td>
                     </tr>
                   ))}
