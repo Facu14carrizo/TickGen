@@ -5,7 +5,11 @@ import { Scan, CheckCircle, XCircle, Camera } from 'lucide-react';
 
 type FacingMode = 'environment' | 'user';
 
-export default function TicketScanner() {
+interface TicketScannerProps {
+  onTicketValidated?: () => void;
+}
+
+export default function TicketScanner({ onTicketValidated }: TicketScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanner] = useState(() => new QRScanner());
@@ -89,6 +93,9 @@ export default function TicketScanner() {
         type: 'success',
         message: `✓ Entrada válida para "${ticket.events.name}". Entrada #${ticket.ticket_number} registrada correctamente.`,
       });
+      if (onTicketValidated) {
+        onTicketValidated();
+      }
     } catch (error) {
       console.error('Validation error:', error);
       setResult({

@@ -15,13 +15,30 @@ interface TicketWithEvent {
   };
 }
 
-export default function TicketList() {
+interface TicketListProps {
+  refreshKey?: number;
+}
+
+export default function TicketList({ refreshKey = 0 }: TicketListProps) {
   const [tickets, setTickets] = useState<TicketWithEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'used' | 'unused'>('all');
 
   useEffect(() => {
     fetchTickets();
+  }, [refreshKey]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('tickets-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
+        fetchTickets();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchTickets = async () => {

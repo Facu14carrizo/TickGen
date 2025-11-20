@@ -8,6 +8,9 @@ type View = 'generator' | 'scanner' | 'list';
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('generator');
+  const [ticketsVersion, setTicketsVersion] = useState(0);
+
+  const refreshTickets = () => setTicketsVersion((prev) => prev + 1);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
@@ -71,9 +74,9 @@ function App() {
       </nav>
 
       <main className="py-4 sm:py-8">
-        {currentView === 'generator' && <TicketGenerator />}
-        {currentView === 'scanner' && <TicketScanner />}
-        {currentView === 'list' && <TicketList />}
+        {currentView === 'generator' && <TicketGenerator onGenerated={refreshTickets} />}
+        {currentView === 'scanner' && <TicketScanner onTicketValidated={refreshTickets} />}
+        {currentView === 'list' && <TicketList refreshKey={ticketsVersion} />}
       </main>
 
       <footer className="bg-gray-800 border-t-2 border-gray-700 mt-12">
