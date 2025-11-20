@@ -12,6 +12,14 @@ export class QRScanner {
     onScanSuccess: (code: string) => void,
     onError: (error: string) => void
   ): Promise<void> {
+    const permissionStatus = await this.checkCameraPermission();
+    if (permissionStatus === 'denied') {
+      onError(
+        'El permiso de cámara está bloqueado. Ve a los ajustes del navegador y permite el acceso a la cámara para este sitio.'
+      );
+      return;
+    }
+
     this.video = videoElement;
     this.canvas = document.createElement('canvas');
     this.canvasContext = this.canvas.getContext('2d');
@@ -55,6 +63,19 @@ export class QRScanner {
     }
 
     throw lastError ?? new Error('No se pudo acceder a la cámara.');
+  }
+
+  private async checkCameraPermission(): Promise<PermissionState | 'unsupported'> {
+    if (!navigator.permissions?.query) {
+      return 'unsupported';
+    }
+
+    try {
+      const status = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      return status.state;
+    } catch {
+      return 'unsupported';
+    }
   }
 
   private scan(onScanSuccess: (code: string) => void, onError: (error: string) => void): void {
