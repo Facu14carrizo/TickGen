@@ -10,7 +10,8 @@ export class QRScanner {
   async startScanning(
     videoElement: HTMLVideoElement,
     onScanSuccess: (code: string) => void,
-    onError: (error: string) => void
+    onError: (error: string) => void,
+    facingMode: 'environment' | 'user' = 'environment'
   ): Promise<void> {
     try {
       const permissionStatus = await this.checkCameraPermission();
@@ -28,7 +29,7 @@ export class QRScanner {
       this.canvas = document.createElement('canvas');
       this.canvasContext = this.canvas.getContext('2d');
 
-      this.stream = await this.requestCameraStream(permissionStatus === 'prompt');
+      this.stream = await this.requestCameraStream(permissionStatus === 'prompt', facingMode);
 
       this.video.srcObject = this.stream;
       this.video.setAttribute('playsinline', 'true');
@@ -45,7 +46,10 @@ export class QRScanner {
     }
   }
 
-  private async requestCameraStream(shouldWarmUp: boolean): Promise<MediaStream> {
+  private async requestCameraStream(
+    shouldWarmUp: boolean,
+    facingMode: 'environment' | 'user'
+  ): Promise<MediaStream> {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error('La API de la cámara no está disponible en este dispositivo.');
     }
@@ -61,17 +65,25 @@ export class QRScanner {
       }
     }
 
-    const preferredDeviceConstraint = await this.getPreferredDeviceConstraint();
+    const preferredDeviceConstraint = await this.getPreferredDeviceConstraint(facingMode);
     if (preferredDeviceConstraint) {
       constraintAttempts.push(preferredDeviceConstraint);
     }
 
-    constraintAttempts.push(
-      { video: { facingMode: { exact: 'environment' as const } } },
-      { video: { facingMode: { ideal: 'environment' as const } } },
-      { video: { facingMode: 'environment' } },
-      { video: true }
-    );
+    const facingConstraints =
+      facingMode === 'environment'
+        ? [
+            { video: { facingMode: { exact: 'environment' as const } } },
+            { video: { facingMode: { ideal: 'environment' as const } } },
+            { video: { facingMode: 'environment' } },
+          ]
+        : [
+            { video: { facingMode: { exact: 'user' as const } } },
+            { video: { facingMode: { ideal: 'user' as const } } },
+            { video: { facingMode: 'user' } },
+          ];
+
+    constraintAttempts.push(...facingConstraints, { video: true });
 
     let lastError: unknown = null;
 
@@ -100,7 +112,9 @@ export class QRScanner {
     }
   }
 
-  private async getPreferredDeviceConstraint(): Promise<MediaStreamConstraints | null> {
+  private async getPreferredDeviceConstraint(
+    facingMode: 'environment' | 'user'
+  ): Promise<MediaStreamConstraints | null> {
     if (!navigator.mediaDevices?.enumerateDevices) {
       return null;
     }
@@ -110,12 +124,16 @@ export class QRScanner {
       const videoInputs = devices.filter((device) => device.kind === 'videoinput');
       if (!videoInputs.length) return null;
 
-      const backCamera =
-        videoInputs.find((device) => /back|rear|environment/i.test(device.label)) || videoInputs[0];
+      const preferredCamera =
+        videoInputs.find((device) =>
+          facingMode === 'environment'
+            ? /back|rear|environment/i.test(device.label)
+            : /front|user|face/i.test(device.label)
+        ) || videoInputs[0];
 
       return {
         video: {
-          deviceId: backCamera.deviceId,
+          deviceId: preferredCamera.deviceId,
         },
       };
     } catch (error) {

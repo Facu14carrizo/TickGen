@@ -3,10 +3,13 @@ import { QRScanner } from '../lib/qrScanner';
 import { supabase } from '../lib/supabase';
 import { Scan, CheckCircle, XCircle, Camera } from 'lucide-react';
 
+type FacingMode = 'environment' | 'user';
+
 export default function TicketScanner() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanner] = useState(() => new QRScanner());
+  const [cameraFacing, setCameraFacing] = useState<FacingMode>('environment');
   const [result, setResult] = useState<{
     type: 'success' | 'error' | 'warning';
     message: string;
@@ -36,7 +39,8 @@ export default function TicketScanner() {
     await scanner.startScanning(
       videoRef.current,
       handleScanSuccess,
-      handleScanError
+      handleScanError,
+      cameraFacing
     );
   };
 
@@ -107,6 +111,10 @@ export default function TicketScanner() {
     if (!isScanning) {
       startScanning();
     }
+  };
+
+  const toggleCameraFacing = () => {
+    setCameraFacing((prev) => (prev === 'environment' ? 'user' : 'environment'));
   };
 
   return (
@@ -182,7 +190,7 @@ export default function TicketScanner() {
             </div>
           )}
 
-          <div className="flex gap-3 sm:gap-4">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
             {!isScanning ? (
               <button
                 onClick={startScanning}
@@ -200,6 +208,14 @@ export default function TicketScanner() {
                 Detener Escaneo
               </button>
             )}
+
+            <button
+              onClick={toggleCameraFacing}
+              disabled={isScanning}
+              className="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-100 font-semibold py-3 sm:py-4 rounded-xl transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+            >
+              {cameraFacing === 'environment' ? 'Usar cámara frontal' : 'Usar cámara trasera'}
+            </button>
           </div>
 
           {result && !isScanning && (
