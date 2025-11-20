@@ -19,10 +19,19 @@ export default function TicketScanner() {
   }, [scanner]);
 
   const startScanning = async () => {
-    if (!videoRef.current) return;
-
     setResult(null);
     setIsScanning(true);
+
+    await new Promise(requestAnimationFrame);
+
+    if (!videoRef.current) {
+      setIsScanning(false);
+      setResult({
+        type: 'error',
+        message: 'No se pudo inicializar la cámara. Intenta nuevamente.',
+      });
+      return;
+    }
 
     await scanner.startScanning(
       videoRef.current,
