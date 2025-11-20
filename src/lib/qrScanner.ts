@@ -12,20 +12,23 @@ export class QRScanner {
     onScanSuccess: (code: string) => void,
     onError: (error: string) => void
   ): Promise<void> {
-    const permissionStatus = await this.checkCameraPermission();
-    if (permissionStatus === 'denied') {
-      onError(
-        'El permiso de cámara está bloqueado. Ve a los ajustes del navegador y permite el acceso a la cámara para este sitio.'
-      );
-      return;
-    }
-
-    this.video = videoElement;
-    this.canvas = document.createElement('canvas');
-    this.canvasContext = this.canvas.getContext('2d');
-
     try {
-      this.stream = await this.requestCameraStream();
+      const permissionStatus = await this.checkCameraPermission();
+      if (permissionStatus === 'denied') {
+        throw new Error(
+          'El permiso de cámara está bloqueado. Ve a los ajustes del navegador y permite el acceso a la cámara para este sitio.'
+        );
+      }
+
+      if (!window.isSecureContext) {
+        throw new Error('La cámara sólo se puede usar en conexiones seguras (HTTPS o localhost).');
+      }
+
+      this.video = videoElement;
+      this.canvas = document.createElement('canvas');
+      this.canvasContext = this.canvas.getContext('2d');
+
+      this.stream = await this.requestCameraStream(permissionStatus === 'prompt');
 
       this.video.srcObject = this.stream;
       this.video.setAttribute('playsinline', 'true');
@@ -33,23 +36,42 @@ export class QRScanner {
 
       this.scanning = true;
       this.scan(onScanSuccess, onError);
-    } catch (error) {
-      onError('No se pudo acceder a la cámara. Por favor, verifica los permisos.');
+    } catch (error: any) {
+      const message =
+        error?.message ||
+        'No se pudo acceder a la cámara. Por favor, verifica los permisos y vuelve a intentarlo.';
+      onError(message);
       console.error('Camera access error:', error);
     }
   }
 
-  private async requestCameraStream(): Promise<MediaStream> {
+  private async requestCameraStream(shouldWarmUp: boolean): Promise<MediaStream> {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error('La API de la cámara no está disponible en este dispositivo.');
     }
 
-    const constraintAttempts: MediaStreamConstraints[] = [
+    const constraintAttempts: MediaStreamConstraints[] = [];
+
+    if (shouldWarmUp) {
+      // Algunos navegadores requieren una solicitud previa para enumerar dispositivos
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: true });
+      } catch {
+        // Ignorar, sólo intentamos desbloquear enumerateDevices
+      }
+    }
+
+    const preferredDeviceConstraint = await this.getPreferredDeviceConstraint();
+    if (preferredDeviceConstraint) {
+      constraintAttempts.push(preferredDeviceConstraint);
+    }
+
+    constraintAttempts.push(
       { video: { facingMode: { exact: 'environment' as const } } },
       { video: { facingMode: { ideal: 'environment' as const } } },
       { video: { facingMode: 'environment' } },
-      { video: true },
-    ];
+      { video: true }
+    );
 
     let lastError: unknown = null;
 
@@ -75,6 +97,30 @@ export class QRScanner {
       return status.state;
     } catch {
       return 'unsupported';
+    }
+  }
+
+  private async getPreferredDeviceConstraint(): Promise<MediaStreamConstraints | null> {
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      return null;
+    }
+
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter((device) => device.kind === 'videoinput');
+      if (!videoInputs.length) return null;
+
+      const backCamera =
+        videoInputs.find((device) => /back|rear|environment/i.test(device.label)) || videoInputs[0];
+
+      return {
+        video: {
+          deviceId: backCamera.deviceId,
+        },
+      };
+    } catch (error) {
+      console.warn('No se pudieron enumerar dispositivos de vídeo:', error);
+      return null;
     }
   }
 
