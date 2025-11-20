@@ -18,11 +18,16 @@ export class QRScanner {
 
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
       });
 
       this.video.srcObject = this.stream;
       this.video.setAttribute('playsinline', 'true');
+      this.video.setAttribute('muted', 'true');
+      this.video.setAttribute('autoplay', 'true');
+      this.video.muted = true;
+      this.video.autoplay = true;
       await this.video.play();
 
       this.scanning = true;
