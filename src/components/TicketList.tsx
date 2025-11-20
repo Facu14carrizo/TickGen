@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Ticket, Calendar, Hash, CheckCircle, Clock, Trash2 } from 'lucide-react';
+import { Ticket, Calendar, Hash, CheckCircle, Clock, Trash2, RefreshCcw } from 'lucide-react';
 
 interface TicketWithEvent {
   id: string;
@@ -48,9 +48,9 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
 
     try {
       setDeletingId(ticketId);
-      const { error } = await supabase.from('tickets').delete().eq('id', ticketId);
+      const { error } = await supabase.from('tickets').delete().eq('id', Number(ticketId));
       if (error) throw error;
-      setTickets((prev) => prev.filter((ticket) => ticket.id !== ticketId));
+      await fetchTickets();
     } catch (error) {
       console.error('Error deleting ticket:', error);
       alert('No se pudo eliminar la entrada. Intenta nuevamente.');
@@ -139,36 +139,45 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
           </div>
         </div>
 
-        <div className="flex gap-2 sm:gap-3 mb-4 sm:mb-6 overflow-x-auto pb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
+          <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2">
+            <button
+              onClick={() => setFilter('all')}
+              className={`px-4 sm:px-6 py-2 rounded-lg font-semibold transition-all whitespace-nowrap text-sm sm:text-base ${
+                filter === 'all'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              Todas
+            </button>
+            <button
+              onClick={() => setFilter('unused')}
+              className={`px-4 sm:px-6 py-2 rounded-lg font-semibold transition-all whitespace-nowrap text-sm sm:text-base ${
+                filter === 'unused'
+                  ? 'bg-orange-600 text-white shadow-lg'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              Disponibles
+            </button>
+            <button
+              onClick={() => setFilter('used')}
+              className={`px-4 sm:px-6 py-2 rounded-lg font-semibold transition-all whitespace-nowrap text-sm sm:text-base ${
+                filter === 'used'
+                  ? 'bg-green-600 text-white shadow-lg'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              Utilizadas
+            </button>
+          </div>
           <button
-            onClick={() => setFilter('all')}
-            className={`px-4 sm:px-6 py-2 rounded-lg font-semibold transition-all whitespace-nowrap text-sm sm:text-base ${
-              filter === 'all'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
+            onClick={fetchTickets}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-700 text-gray-100 bg-gray-800 hover:bg-gray-700 transition-all text-sm sm:text-base"
           >
-            Todas
-          </button>
-          <button
-            onClick={() => setFilter('unused')}
-            className={`px-4 sm:px-6 py-2 rounded-lg font-semibold transition-all whitespace-nowrap text-sm sm:text-base ${
-              filter === 'unused'
-                ? 'bg-orange-600 text-white shadow-lg'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
-          >
-            Disponibles
-          </button>
-          <button
-            onClick={() => setFilter('used')}
-            className={`px-4 sm:px-6 py-2 rounded-lg font-semibold transition-all whitespace-nowrap text-sm sm:text-base ${
-              filter === 'used'
-                ? 'bg-green-600 text-white shadow-lg'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
-          >
-            Utilizadas
+            <RefreshCcw className="w-4 h-4" />
+            Refrescar
           </button>
         </div>
 
@@ -266,3 +275,4 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
     </div>
   );
 }
+

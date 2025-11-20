@@ -1,7 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { generateUniqueCode, generateQRCode, createTicketElement, downloadTicketAsImage } from '../lib/ticketGenerator';
-import { Ticket, Upload, Download, Loader } from 'lucide-react';
+import {
+  generateUniqueCode,
+  generateQRCode,
+  createTicketElement,
+  downloadTicketAsImage,
+  TicketOrientation,
+  TicketQRPosition,
+} from '../lib/ticketGenerator';
+import { Ticket, Upload, Download, Loader, Monitor, Smartphone, MoveRight, MoveLeft } from 'lucide-react';
 
 interface TicketGeneratorProps {
   onGenerated?: () => void;
@@ -11,12 +18,27 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
   const [eventName, setEventName] = useState('');
   const [eventDescription, setEventDescription] = useState('');
   const [eventDate, setEventDate] = useState('');
-  const [ticketTitle, setTicketTitle] = useState('');
-  const [ticketSubtitle, setTicketSubtitle] = useState('');
   const [backgroundImage, setBackgroundImage] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [orientation, setOrientation] = useState<TicketOrientation>('landscape');
+  const [qrPosition, setQrPosition] = useState<TicketQRPosition>('end');
+  const [previewQr, setPreviewQr] = useState<string>('');
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  const formatEventDate = (value: string) => {
+    if (!value) return 'Fecha por confirmar';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Fecha por confirmar';
+    return date.toLocaleString('es-ES', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -29,8 +51,54 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
     }
   };
 
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const qr = await generateQRCode('PREVIEW-TICKET');
+        if (isMounted) {
+          setPreviewQr(qr);
+        }
+      } catch (error) {
+        console.error('Error preparando QR de vista previa:', error);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!previewQr || !previewRef.current) return;
+    const container = previewRef.current;
+    const titlePreview = eventName || 'Nombre del evento';
+    const subtitlePreview = eventDescription || 'Información adicional del espectáculo';
+    const datePreview = formatEventDate(eventDate);
+    const ticketElement = createTicketElement(
+      titlePreview,
+      subtitlePreview,
+      Math.max(1, quantity),
+      datePreview,
+      previewQr,
+      backgroundImage || undefined,
+      orientation,
+      qrPosition
+    );
+    container.innerHTML = '';
+    container.appendChild(ticketElement);
+  }, [
+    previewQr,
+    eventName,
+    eventDescription,
+    eventDate,
+    backgroundImage,
+    orientation,
+    qrPosition,
+    quantity,
+  ]);
+
   const generateTickets = async () => {
-    if (!eventName || !ticketTitle || !eventDate) {
+    if (!eventName || !eventDate) {
       alert('Por favor completa todos los campos requeridos');
       return;
     }
@@ -55,8 +123,8 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
         .from('ticket_designs')
         .insert({
           event_id: eventData.id,
-          title: ticketTitle,
-          subtitle: ticketSubtitle,
+          title: eventName,
+          subtitle: eventDescription,
           background_image: backgroundImage,
         })
         .select()
@@ -84,11 +152,14 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
         if (ticketError) throw ticketError;
 
         const ticketElement = createTicketElement(
-          ticketTitle,
-          ticketSubtitle,
+          eventName,
+          eventDescription || 'Evento especial',
           i,
+          formatEventDate(eventDate),
           qrDataUrl,
-          backgroundImage
+          backgroundImage || undefined,
+          orientation,
+          qrPosition
         );
 
         tempContainer.innerHTML = '';
@@ -114,8 +185,6 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
       setEventName('');
       setEventDescription('');
       setEventDate('');
-      setTicketTitle('');
-      setTicketSubtitle('');
       setBackgroundImage('');
       setQuantity(1);
 
@@ -183,31 +252,67 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
           <div className="border-t-2 border-gray-700 pt-4 sm:pt-6">
             <h3 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4">Diseño de la Entrada</h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-2">
-                  Título en la Entrada *
-                </label>
-                <input
-                  type="text"
-                  value={ticketTitle}
-                  onChange={(e) => setTicketTitle(e.target.value)}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-gray-700 border-2 border-gray-600 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400 transition-all outline-none"
-                  placeholder="Título principal"
-                />
+            <div className="mt-4 sm:mt-6">
+              <label className="block text-sm font-semibold text-gray-300 mb-2">
+                Orientación del Formato
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setOrientation('landscape')}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-all ${
+                    orientation === 'landscape'
+                      ? 'border-blue-500 bg-blue-900/40 text-blue-200'
+                      : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-blue-500/60'
+                  }`}
+                >
+                  <Monitor className="w-5 h-5" />
+                  Horizontal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrientation('portrait')}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-all ${
+                    orientation === 'portrait'
+                      ? 'border-blue-500 bg-blue-900/40 text-blue-200'
+                      : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-blue-500/60'
+                  }`}
+                >
+                  <Smartphone className="w-5 h-5" />
+                  Vertical
+                </button>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-2">
-                  Subtítulo
-                </label>
-                <input
-                  type="text"
-                  value={ticketSubtitle}
-                  onChange={(e) => setTicketSubtitle(e.target.value)}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-gray-700 border-2 border-gray-600 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400 transition-all outline-none"
-                  placeholder="Subtítulo o información adicional"
-                />
+            <div className="mt-4 sm:mt-6">
+              <label className="block text-sm font-semibold text-gray-300 mb-2">
+                Ubicación del QR
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setQrPosition('start')}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-all ${
+                    qrPosition === 'start'
+                      ? 'border-purple-500 bg-purple-900/40 text-purple-200'
+                      : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-purple-500/60'
+                  }`}
+                >
+                  <MoveLeft className="w-5 h-5" />
+                  {orientation === 'portrait' ? 'QR arriba' : 'QR izquierda'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrPosition('end')}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-all ${
+                    qrPosition === 'end'
+                      ? 'border-purple-500 bg-purple-900/40 text-purple-200'
+                      : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-purple-500/60'
+                  }`}
+                >
+                  <MoveRight className="w-5 h-5" />
+                  {orientation === 'portrait' ? 'QR abajo' : 'QR derecha'}
+                </button>
               </div>
             </div>
 
@@ -247,18 +352,27 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
             </div>
           </div>
 
-          {backgroundImage && (
-            <div className="border-2 border-gray-700 rounded-xl p-3 sm:p-4">
-              <p className="text-sm font-semibold text-gray-300 mb-2 sm:mb-3">Vista previa:</p>
-              <div className="flex justify-center">
-                <img
-                  src={backgroundImage}
-                  alt="Preview"
-                  className="max-w-full h-32 sm:h-40 object-cover rounded-lg"
-                />
+          <div className="border-2 border-gray-700 rounded-2xl p-4 sm:p-6 bg-gray-900/40">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-300">Vista previa en tiempo real</p>
+                <p className="text-xs text-gray-400">Se actualiza con cada cambio de texto, imagen u orientación.</p>
+              </div>
+              <span className="text-xs font-semibold px-3 py-1 bg-gray-700 rounded-full text-gray-200 uppercase">
+                {orientation === 'landscape' ? 'Horizontal' : 'Vertical'}
+              </span>
+            </div>
+            <div className="w-full flex justify-center overflow-auto">
+              <div
+                ref={previewRef}
+                className="min-h-[220px] flex items-center justify-center"
+              >
+                {!previewQr && (
+                  <div className="text-gray-400 text-sm">Generando vista previa...</div>
+                )}
               </div>
             </div>
-          )}
+          </div>
 
           {isGenerating && (
             <div className="bg-blue-900 border-2 border-blue-700 rounded-xl p-4 sm:p-6">
