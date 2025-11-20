@@ -7,8 +7,10 @@ import {
   downloadTicketAsImage,
   TicketOrientation,
   TicketQRPosition,
+  TicketQRSize,
+  TicketDesignOptions,
 } from '../lib/ticketGenerator';
-import { Ticket, Upload, Download, Loader, Monitor, Smartphone, MoveRight, MoveLeft } from 'lucide-react';
+import { Ticket, Upload, Download, Loader, Monitor, Smartphone, MoveRight, MoveLeft, Palette, Type, Image as ImageIcon, Eye, EyeOff } from 'lucide-react';
 
 interface TicketGeneratorProps {
   onGenerated?: () => void;
@@ -24,6 +26,15 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
   const [progress, setProgress] = useState(0);
   const [orientation, setOrientation] = useState<TicketOrientation>('landscape');
   const [qrPosition, setQrPosition] = useState<TicketQRPosition>('end');
+  const [qrSize, setQrSize] = useState<TicketQRSize>('medium');
+  const [backgroundColor, setBackgroundColor] = useState('#667eea');
+  const [accentColor, setAccentColor] = useState('#764ba2');
+  const [textColor, setTextColor] = useState('#ffffff');
+  const [titleFontSize, setTitleFontSize] = useState<number | undefined>(undefined);
+  const [subtitleFontSize, setSubtitleFontSize] = useState<number | undefined>(undefined);
+  const [overlayOpacity, setOverlayOpacity] = useState(0.55);
+  const [showTicketNumber, setShowTicketNumber] = useState(true);
+  const [qrBorderStyle, setQrBorderStyle] = useState<'none' | 'rounded' | 'square'>('rounded');
   const [previewQr, setPreviewQr] = useState<string>('');
   const previewRef = useRef<HTMLDivElement>(null);
 
@@ -55,7 +66,7 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
     let isMounted = true;
     (async () => {
       try {
-        const qr = await generateQRCode('PREVIEW-TICKET');
+        const qr = await generateQRCode('PREVIEW-TICKET', qrSize);
         if (isMounted) {
           setPreviewQr(qr);
         }
@@ -66,7 +77,7 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [qrSize]);
 
   useEffect(() => {
     if (!previewQr || !previewRef.current) return;
@@ -74,6 +85,17 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
     const titlePreview = eventName || 'Nombre del evento';
     const subtitlePreview = eventDescription || 'Información adicional del espectáculo';
     const datePreview = formatEventDate(eventDate);
+    const designOptions: TicketDesignOptions = {
+      backgroundColor,
+      accentColor,
+      textColor,
+      qrSize,
+      titleFontSize,
+      subtitleFontSize,
+      overlayOpacity: backgroundImage ? overlayOpacity : 0,
+      showTicketNumber,
+      qrBorderStyle,
+    };
     const ticketElement = createTicketElement(
       titlePreview,
       subtitlePreview,
@@ -82,7 +104,8 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
       previewQr,
       backgroundImage || undefined,
       orientation,
-      qrPosition
+      qrPosition,
+      designOptions
     );
     container.innerHTML = '';
     container.appendChild(ticketElement);
@@ -95,6 +118,15 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
     orientation,
     qrPosition,
     quantity,
+    backgroundColor,
+    accentColor,
+    textColor,
+    qrSize,
+    titleFontSize,
+    subtitleFontSize,
+    overlayOpacity,
+    showTicketNumber,
+    qrBorderStyle,
   ]);
 
   const generateTickets = async () => {
@@ -139,7 +171,7 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
 
       for (let i = 1; i <= quantity; i++) {
         const qrCode = generateUniqueCode();
-        const qrDataUrl = await generateQRCode(qrCode);
+        const qrDataUrl = await generateQRCode(qrCode, qrSize);
 
         const { error: ticketError } = await supabase
           .from('tickets')
@@ -151,6 +183,18 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
 
         if (ticketError) throw ticketError;
 
+        const designOptions: TicketDesignOptions = {
+          backgroundColor,
+          accentColor,
+          textColor,
+          qrSize,
+          titleFontSize,
+          subtitleFontSize,
+          overlayOpacity: backgroundImage ? overlayOpacity : 0,
+          showTicketNumber,
+          qrBorderStyle,
+        };
+
         const ticketElement = createTicketElement(
           eventName,
           eventDescription || 'Evento especial',
@@ -159,7 +203,8 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
           qrDataUrl,
           backgroundImage || undefined,
           orientation,
-          qrPosition
+          qrPosition,
+          designOptions
         );
 
         tempContainer.innerHTML = '';
@@ -318,8 +363,161 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
 
             <div className="mt-4 sm:mt-6">
               <label className="block text-sm font-semibold text-gray-300 mb-2">
-                Imagen de Fondo (Opcional)
+                Tamaño del QR
               </label>
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setQrSize('small')}
+                  className={`px-4 py-2 rounded-lg border-2 transition-all text-sm ${
+                    qrSize === 'small'
+                      ? 'border-blue-500 bg-blue-900/40 text-blue-200'
+                      : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-blue-500/60'
+                  }`}
+                >
+                  Pequeño
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrSize('medium')}
+                  className={`px-4 py-2 rounded-lg border-2 transition-all text-sm ${
+                    qrSize === 'medium'
+                      ? 'border-blue-500 bg-blue-900/40 text-blue-200'
+                      : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-blue-500/60'
+                  }`}
+                >
+                  Mediano
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrSize('large')}
+                  className={`px-4 py-2 rounded-lg border-2 transition-all text-sm ${
+                    qrSize === 'large'
+                      ? 'border-blue-500 bg-blue-900/40 text-blue-200'
+                      : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-blue-500/60'
+                  }`}
+                >
+                  Grande
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 sm:mt-6 border-t border-gray-700 pt-4">
+              <h4 className="text-sm font-bold text-gray-300 mb-3 flex items-center gap-2">
+                <Palette className="w-4 h-4" />
+                Colores
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-2">
+                    Color de Fondo
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={backgroundColor}
+                      onChange={(e) => setBackgroundColor(e.target.value)}
+                      className="w-12 h-12 rounded-lg border-2 border-gray-600 cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={backgroundColor}
+                      onChange={(e) => setBackgroundColor(e.target.value)}
+                      className="flex-1 px-3 py-2 bg-gray-700 border-2 border-gray-600 rounded-lg text-white text-sm"
+                      placeholder="#667eea"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-2">
+                    Color Acento
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={accentColor}
+                      onChange={(e) => setAccentColor(e.target.value)}
+                      className="w-12 h-12 rounded-lg border-2 border-gray-600 cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={accentColor}
+                      onChange={(e) => setAccentColor(e.target.value)}
+                      className="flex-1 px-3 py-2 bg-gray-700 border-2 border-gray-600 rounded-lg text-white text-sm"
+                      placeholder="#764ba2"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-2">
+                    Color de Texto
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={textColor}
+                      onChange={(e) => setTextColor(e.target.value)}
+                      className="w-12 h-12 rounded-lg border-2 border-gray-600 cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={textColor}
+                      onChange={(e) => setTextColor(e.target.value)}
+                      className="flex-1 px-3 py-2 bg-gray-700 border-2 border-gray-600 rounded-lg text-white text-sm"
+                      placeholder="#ffffff"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 sm:mt-6 border-t border-gray-700 pt-4">
+              <h4 className="text-sm font-bold text-gray-300 mb-3 flex items-center gap-2">
+                <Type className="w-4 h-4" />
+                Tipografía
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-2">
+                    Tamaño Título (px)
+                  </label>
+                  <input
+                    type="number"
+                    min="20"
+                    max="60"
+                    value={titleFontSize || ''}
+                    onChange={(e) => setTitleFontSize(e.target.value ? parseInt(e.target.value) : undefined)}
+                    className="w-full px-3 py-2 bg-gray-700 border-2 border-gray-600 rounded-lg text-white text-sm"
+                    placeholder="Auto"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-2">
+                    Tamaño Subtítulo (px)
+                  </label>
+                  <input
+                    type="number"
+                    min="12"
+                    max="30"
+                    value={subtitleFontSize || ''}
+                    onChange={(e) => setSubtitleFontSize(e.target.value ? parseInt(e.target.value) : undefined)}
+                    className="w-full px-3 py-2 bg-gray-700 border-2 border-gray-600 rounded-lg text-white text-sm"
+                    placeholder="Auto"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 sm:mt-6 border-t border-gray-700 pt-4">
+              <h4 className="text-sm font-bold text-gray-300 mb-3 flex items-center gap-2">
+                <ImageIcon className="w-4 h-4" />
+                Imágenes
+              </h4>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-2">
+                    Imagen de Fondo (Opcional)
+                  </label>
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
                 <label className="flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-xl cursor-pointer transition-colors w-full sm:w-auto">
                   <Upload className="w-4 h-4 sm:w-5 sm:h-5 text-gray-300" />
@@ -334,6 +532,91 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
                 {backgroundImage && (
                   <span className="text-sm text-green-400 font-medium">✓ Imagen cargada</span>
                 )}
+              </div>
+                </div>
+                {backgroundImage && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-2">
+                      Opacidad Overlay: {Math.round(overlayOpacity * 100)}%
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={overlayOpacity}
+                      onChange={(e) => setOverlayOpacity(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 sm:mt-6 border-t border-gray-700 pt-4">
+              <h4 className="text-sm font-bold text-gray-300 mb-3 flex items-center gap-2">
+                Opciones Adicionales
+              </h4>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-gray-300 flex items-center gap-2">
+                    {showTicketNumber ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                    Mostrar número de entrada
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowTicketNumber(!showTicketNumber)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      showTicketNumber ? 'bg-blue-600' : 'bg-gray-600'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        showTicketNumber ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-2">
+                    Estilo Borde QR
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setQrBorderStyle('none')}
+                      className={`px-3 py-2 rounded-lg border-2 transition-all text-xs ${
+                        qrBorderStyle === 'none'
+                          ? 'border-blue-500 bg-blue-900/40 text-blue-200'
+                          : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-blue-500/60'
+                      }`}
+                    >
+                      Sin borde
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQrBorderStyle('rounded')}
+                      className={`px-3 py-2 rounded-lg border-2 transition-all text-xs ${
+                        qrBorderStyle === 'rounded'
+                          ? 'border-blue-500 bg-blue-900/40 text-blue-200'
+                          : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-blue-500/60'
+                      }`}
+                    >
+                      Redondeado
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQrBorderStyle('square')}
+                      className={`px-3 py-2 rounded-lg border-2 transition-all text-xs ${
+                        qrBorderStyle === 'square'
+                          ? 'border-blue-500 bg-blue-900/40 text-blue-200'
+                          : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-blue-500/60'
+                      }`}
+                    >
+                      Cuadrado
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
