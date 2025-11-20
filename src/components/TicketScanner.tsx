@@ -182,9 +182,16 @@ export default function TicketScanner({ onTicketValidated }: TicketScannerProps)
         playSound('error');
         vibrate([100, 50, 100]);
         addToHistory(null, 'error', code);
-        if (shouldStop) {
+        if (shouldStop && !continuousMode) {
           setIsScanning(false);
           scanner.stopScanning();
+        } else if (continuousMode) {
+          // Reanudar el escaneo después de mostrar el error
+          setTimeout(() => {
+            if (isScanning && videoRef.current) {
+              scanner.resumeScanning(handleScanSuccess, handleScanError);
+            }
+          }, 1500);
         }
         setIsProcessing(false);
         return;
@@ -199,9 +206,16 @@ export default function TicketScanner({ onTicketValidated }: TicketScannerProps)
         playSound('warning');
         vibrate(200);
         addToHistory(ticket, 'warning', code);
-        if (shouldStop) {
+        if (shouldStop && !continuousMode) {
           setIsScanning(false);
           scanner.stopScanning();
+        } else if (continuousMode) {
+          // Reanudar el escaneo después de mostrar la advertencia
+          setTimeout(() => {
+            if (isScanning && videoRef.current) {
+              scanner.resumeScanning(handleScanSuccess, handleScanError);
+            }
+          }, 1500);
         }
         setIsProcessing(false);
         return;
@@ -235,9 +249,11 @@ export default function TicketScanner({ onTicketValidated }: TicketScannerProps)
         setIsScanning(false);
         scanner.stopScanning();
       } else if (continuousMode) {
+        // En modo continuo, limpiar el resultado después de un tiempo pero mantener el escaneo activo
         setTimeout(() => {
           setResult(null);
         }, 2000);
+        // El escaneo se reanudará en handleScanSuccess
       }
     } catch (error) {
       console.error('Validation error:', error);
@@ -247,13 +263,41 @@ export default function TicketScanner({ onTicketValidated }: TicketScannerProps)
       });
       playSound('error');
       vibrate([200, 100, 200]);
+      
+      // Si está en modo continuo, reanudar el escaneo después del error
+      if (continuousMode && isScanning && videoRef.current) {
+        setTimeout(() => {
+          if (isScanning && videoRef.current) {
+            scanner.resumeScanning(handleScanSuccess, handleScanError);
+          }
+        }, 1500);
+      } else if (!continuousMode && isScanning) {
+        setIsScanning(false);
+        scanner.stopScanning();
+      }
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleScanSuccess = async (code: string) => {
+    // Pausar el escaneo temporalmente para procesar el código
+    if (continuousMode) {
+      scanner.pauseScanning();
+    } else {
+      scanner.stopScanning();
+    }
+    
     await validateTicket(code, !continuousMode);
+    
+    // Si está en modo continuo, reanudar el escaneo después de un breve delay
+    if (continuousMode && isScanning && videoRef.current) {
+      setTimeout(() => {
+        if (isScanning && videoRef.current) {
+          scanner.resumeScanning(handleScanSuccess, handleScanError);
+        }
+      }, 1500); // Esperar 1.5 segundos antes de reanudar
+    }
   };
 
   const handleManualSearch = async () => {

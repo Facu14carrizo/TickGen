@@ -171,14 +171,34 @@ export class QRScanner {
       });
 
       if (code) {
+        // No detener el escaneo aquí, dejar que el componente decida
+        // Solo pausar temporalmente para evitar múltiples escaneos del mismo código
+        const codeData = code.data;
         this.scanning = false;
-        onScanSuccess(code.data);
-        this.stopScanning();
+        
+        // Pequeño delay para evitar escanear el mismo código múltiples veces
+        setTimeout(() => {
+          onScanSuccess(codeData);
+        }, 100);
+        
         return;
       }
     }
 
     requestAnimationFrame(() => this.scan(onScanSuccess, onError));
+  }
+
+  pauseScanning(): void {
+    // Pausar el escaneo sin detener el stream
+    this.scanning = false;
+  }
+
+  resumeScanning(onScanSuccess: (code: string) => void, onError: (error: string) => void): void {
+    // Reanudar el escaneo si el stream aún está activo
+    if (this.stream && this.video && this.canvas && this.canvasContext) {
+      this.scanning = true;
+      this.scan(onScanSuccess, onError);
+    }
   }
 
   stopScanning(): void {
