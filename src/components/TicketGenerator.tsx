@@ -214,7 +214,7 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
 
         await downloadTicketAsImage(
           ticketElement,
-          `tick${i}.png`,
+          `tick${i}.pdf`,
           eventName
         );
 

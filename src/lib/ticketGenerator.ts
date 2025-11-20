@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 export type TicketOrientation = 'landscape' | 'portrait';
 export type TicketQRPosition = 'start' | 'end';
@@ -234,47 +235,42 @@ export const downloadTicketAsImage = async (
   eventName: string
 ): Promise<void> => {
   try {
+    // Convertir el elemento HTML a canvas
     const canvas = await html2canvas(element, {
       scale: 2,
       backgroundColor: null,
+      logging: false,
     });
 
-    const blob = await new Promise<Blob>((resolve) => {
-      canvas.toBlob((blob) => resolve(blob!), 'image/png');
+    // Obtener las dimensiones del canvas
+    const imgWidth = canvas.width;
+    const imgHeight = canvas.height;
+    
+    // Convertir a milímetros para jsPDF (1px ≈ 0.264583mm a 96 DPI)
+    const mmWidth = imgWidth * 0.264583;
+    const mmHeight = imgHeight * 0.264583;
+    
+    // Convertir canvas a imagen
+    const imgData = canvas.toDataURL('image/png');
+    
+    // Crear PDF (orientación según el tamaño)
+    const isLandscape = imgWidth > imgHeight;
+    const pdf = new jsPDF({
+      orientation: isLandscape ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: [mmWidth, mmHeight]
     });
-
-    const cleanEventName = eventName.replace(/[^a-zA-Z0-9-_]/g, '-');
-    const suggestedName = `entradas-${cleanEventName}/${filename}`;
-
-    if ('showSaveFilePicker' in window) {
-      try {
-        const handle = await (window as any).showSaveFilePicker({
-          suggestedName: filename,
-          types: [{
-            description: 'PNG Image',
-            accept: { 'image/png': ['.png'] },
-          }],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        return;
-      } catch (err: any) {
-        if (err.name === 'AbortError') {
-          throw new Error('Descarga cancelada');
-        }
-      }
-    }
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = url;
-    link.click();
-
-    setTimeout(() => URL.revokeObjectURL(url), 100);
+    
+    // Agregar la imagen al PDF (ajustar a las dimensiones del PDF)
+    pdf.addImage(imgData, 'PNG', 0, 0, mmWidth, mmHeight, undefined, 'FAST');
+    
+    // Cambiar la extensión del nombre de archivo de .png a .pdf
+    const pdfFilename = filename.replace(/\.png$/i, '.pdf');
+    
+    // Descargar el PDF
+    pdf.save(pdfFilename);
   } catch (error) {
-    console.error('Error downloading ticket:', error);
+    console.error('Error downloading ticket as PDF:', error);
     throw error;
   }
 };
