@@ -17,17 +17,10 @@ export class QRScanner {
     this.canvasContext = this.canvas.getContext('2d');
 
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-        audio: false,
-      });
+      this.stream = await this.requestCameraStream();
 
       this.video.srcObject = this.stream;
       this.video.setAttribute('playsinline', 'true');
-      this.video.setAttribute('muted', 'true');
-      this.video.setAttribute('autoplay', 'true');
-      this.video.muted = true;
-      this.video.autoplay = true;
       await this.video.play();
 
       this.scanning = true;
@@ -36,6 +29,32 @@ export class QRScanner {
       onError('No se pudo acceder a la cámara. Por favor, verifica los permisos.');
       console.error('Camera access error:', error);
     }
+  }
+
+  private async requestCameraStream(): Promise<MediaStream> {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('La API de la cámara no está disponible en este dispositivo.');
+    }
+
+    const constraintAttempts: MediaStreamConstraints[] = [
+      { video: { facingMode: { exact: 'environment' as const } } },
+      { video: { facingMode: { ideal: 'environment' as const } } },
+      { video: { facingMode: 'environment' } },
+      { video: true },
+    ];
+
+    let lastError: unknown = null;
+
+    for (const constraints of constraintAttempts) {
+      try {
+        return await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (error) {
+        lastError = error;
+        console.warn('No se pudo obtener la cámara con los constraints:', constraints, error);
+      }
+    }
+
+    throw lastError ?? new Error('No se pudo acceder a la cámara.');
   }
 
   private scan(onScanSuccess: (code: string) => void, onError: (error: string) => void): void {
