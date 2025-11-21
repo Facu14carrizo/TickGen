@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { Ticket, Calendar, Hash, CheckCircle, Clock, Trash2, RefreshCcw, Square, CheckSquare2 } from 'lucide-react';
+import { Ticket, Calendar, Hash, CheckCircle, Clock, Trash2, RefreshCcw, Square, CheckSquare2, Eye, X, Download } from 'lucide-react';
+import { createTicketElement, generateQRCode, TicketOrientation, TicketQRPosition, TicketDesignOptions, downloadTicketAsImage } from '../lib/ticketGenerator';
 
 interface TicketWithEvent {
   id: string;
+  event_id: number;
   qr_code: string;
   is_used: boolean;
   used_at: string | null;
@@ -26,6 +28,20 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeletingMultiple, setIsDeletingMultiple] = useState(false);
+  const [previewTicket, setPreviewTicket] = useState<(TicketWithEvent & { totalTickets?: number }) | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewDesign, setPreviewDesign] = useState<{
+    title: string;
+    subtitle: string;
+    dateText: string;
+    qrDataUrl: string;
+    backgroundImage?: string;
+    orientation: TicketOrientation;
+    qrPosition: TicketQRPosition;
+    designOptions: TicketDesignOptions;
+  } | null>(null);
+  const [isDownloadingTicket, setIsDownloadingTicket] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchTickets();
@@ -144,6 +160,164 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
     setSelectedIds(new Set());
   }, [filter]);
 
+  const handleViewTicket = async (ticket: TicketWithEvent) => {
+    setPreviewTicket({ ...ticket, totalTickets: undefined });
+    setPreviewDesign(null);
+    setIsPreviewLoading(true);
+    if (previewRef.current) {
+      previewRef.current.innerHTML = '';
+    }
+    try {
+      const [{ data: designData }, qrDataUrl, totalCountRes] = await Promise.all([
+        supabase
+          .from('ticket_designs')
+          .select('*')
+          .eq('event_id', ticket.event_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        generateQRCode(ticket.qr_code),
+        supabase
+          .from('tickets')
+          .select('ticket_number', { count: 'exact', head: true })
+          .eq('event_id', ticket.event_id),
+      ]);
+
+      const title = designData?.title || ticket.events.name;
+      const subtitle = designData?.subtitle || `Entrada #${ticket.ticket_number}`;
+      const dateText = new Date(ticket.events.event_date).toLocaleString('es-ES', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      const designOptions: TicketDesignOptions = {
+        backgroundColor: '#1f2937',
+        accentColor: '#3b82f6',
+        textColor: '#ffffff',
+        qrSize: 'medium',
+        overlayOpacity: designData?.background_image ? 0.55 : 0,
+        showTicketNumber: true,
+        qrBorderStyle: 'rounded',
+      };
+
+      setPreviewTicket({
+        ...ticket,
+        totalTickets: totalCountRes?.count || undefined,
+      });
+
+      setPreviewDesign({
+        title,
+        subtitle,
+        dateText,
+        qrDataUrl,
+        backgroundImage: designData?.background_image || undefined,
+        orientation: 'landscape',
+        qrPosition: 'end',
+        designOptions,
+      });
+    } catch (error) {
+      console.error('Error loading preview:', error);
+      alert('No se pudo cargar la vista previa. Intenta nuevamente.');
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  const closePreview = () => {
+    setPreviewTicket(null);
+    if (previewRef.current) {
+      previewRef.current.innerHTML = '';
+    }
+    setPreviewDesign(null);
+    setIsPreviewLoading(false);
+    setIsDownloadingTicket(false);
+  };
+
+  useEffect(() => {
+    if (!previewDesign || !previewRef.current || !previewTicket) return;
+
+    const {
+      title,
+      subtitle,
+      dateText,
+      qrDataUrl,
+      backgroundImage,
+      orientation,
+      qrPosition,
+      designOptions,
+    } = previewDesign;
+
+    const element = createTicketElement(
+      title,
+      subtitle,
+      previewTicket.ticket_number,
+      dateText,
+      qrDataUrl,
+      backgroundImage,
+      orientation,
+      qrPosition,
+      designOptions
+    );
+
+    const container = previewRef.current;
+    container.innerHTML = '';
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'inline-block';
+    wrapper.style.transition = 'transform 0.2s ease';
+
+    wrapper.appendChild(element);
+    container.appendChild(wrapper);
+
+    const resizeObserver = new ResizeObserver(() => {
+      const containerWidth = container.clientWidth || 600;
+      const ticketWidth = element.offsetWidth || 600;
+      const scale = Math.min(1, containerWidth / ticketWidth);
+      wrapper.style.transform = `scale(${scale})`;
+      wrapper.style.transformOrigin = 'top center';
+    });
+
+    resizeObserver.observe(container);
+
+    setIsPreviewLoading(false);
+
+    return () => {
+      resizeObserver.disconnect();
+      container.innerHTML = '';
+    };
+  }, [previewDesign, previewTicket]);
+
+  const handleDownloadTicket = async () => {
+    if (!previewTicket || !previewDesign) return;
+    setIsDownloadingTicket(true);
+    try {
+      const element = createTicketElement(
+        previewDesign.title,
+        previewDesign.subtitle,
+        previewTicket.ticket_number,
+        previewDesign.dateText,
+        previewDesign.qrDataUrl,
+        previewDesign.backgroundImage,
+        previewDesign.orientation,
+        previewDesign.qrPosition,
+        previewDesign.designOptions
+      );
+
+      await downloadTicketAsImage(
+        element,
+        `ticket-${previewTicket.ticket_number}.pdf`,
+        previewTicket.events.name
+      );
+    } catch (error) {
+      console.error('Error downloading ticket:', error);
+      alert('No se pudo descargar la entrada. Intenta nuevamente.');
+    } finally {
+      setIsDownloadingTicket(false);
+    }
+  };
+
   const stats = {
     total: tickets.length,
     used: tickets.filter((t) => t.is_used).length,
@@ -161,6 +335,7 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
   }
 
   return (
+    <>
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
       <div className="bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-8">
         <div className="flex items-center gap-2 sm:gap-3 mb-6 sm:mb-8">
@@ -336,7 +511,6 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
                           <span className="inline-flex items-center gap-1 px-2 sm:px-3 py-1 bg-green-900 text-green-300 rounded-full text-xs sm:text-sm font-semibold border border-green-700">
                             <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                             <span className="hidden sm:inline">Utilizada</span>
-                            <span className="sm:hidden">OK</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 sm:px-3 py-1 bg-orange-900 text-orange-300 rounded-full text-xs sm:text-sm font-semibold border border-orange-700">
@@ -358,14 +532,27 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
                           : '-'}
                       </td>
                       <td className="py-3 sm:py-4 px-2 sm:px-4 text-right">
-                        <button
-                          onClick={() => handleDelete(ticket.id)}
-                          disabled={deletingId === ticket.id}
-                          className="inline-flex items-center gap-1 px-3 py-1 bg-red-900 text-red-200 rounded-lg border border-red-700 hover:bg-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm"
-                        >
-                          <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                          {deletingId === ticket.id ? 'Eliminando...' : 'Eliminar'}
-                        </button>
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => handleViewTicket(ticket)}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-blue-900 text-blue-200 rounded-lg border border-blue-700 hover:bg-blue-800 transition-colors text-xs sm:text-sm"
+                            title="Ver"
+                          >
+                            <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
+                            <span className="hidden sm:inline">Ver</span>
+                          </button>
+                          <button
+                            onClick={() => handleDelete(ticket.id)}
+                            disabled={deletingId === ticket.id}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-red-900 text-red-200 rounded-lg border border-red-700 hover:bg-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                            <span className="hidden sm:inline">
+                              {deletingId === ticket.id ? 'Eliminando...' : 'Eliminar'}
+                            </span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -376,6 +563,120 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
         )}
       </div>
     </div>
+    {previewTicket && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
+        <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto border border-gray-700">
+            <div className="flex items-center justify-between border-b border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
+              <div>
+                <p className="text-sm text-gray-400">Vista previa de la entrada</p>
+                <h3 className="text-xl font-bold text-white">
+                  {previewTicket.events.name} — Entrada #{previewTicket.ticket_number}
+                  {previewTicket.totalTickets ? (
+                    <span className="text-sm text-gray-400 ml-2">
+                      ({previewTicket.totalTickets} entradas generadas)
+                    </span>
+                  ) : null}
+                </h3>
+              </div>
+              <button
+                onClick={closePreview}
+                className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 px-4 sm:px-6 py-4 sm:py-6">
+              <div className="bg-gray-800 rounded-xl border border-gray-700 p-4 sm:p-6">
+                <h4 className="text-lg font-semibold text-white mb-3">Detalles</h4>
+                <div className="space-y-3 text-sm text-gray-300">
+                  <div>
+                    <span className="text-gray-400">Evento:</span>
+                    <p className="font-semibold text-white">{previewTicket.events.name}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-gray-400 block">Entrada #</span>
+                      <span className="font-semibold text-white">{previewTicket.ticket_number}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block">Estado</span>
+                      <span
+                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
+                          previewTicket.is_used
+                            ? 'bg-green-900 text-green-300 border border-green-700'
+                            : 'bg-orange-900 text-orange-300 border border-orange-700'
+                        }`}
+                      >
+                        {previewTicket.is_used ? 'Utilizada' : 'Disponible'}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block">Fecha del evento</span>
+                    <p className="font-semibold text-white">
+                      {new Date(previewTicket.events.event_date).toLocaleString('es-ES', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block">Último uso</span>
+                    <p className="font-semibold text-white">
+                      {previewTicket.used_at
+                        ? new Date(previewTicket.used_at).toLocaleString('es-ES', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <button
+                      onClick={handleDownloadTicket}
+                      disabled={isDownloadingTicket || !previewDesign}
+                      className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Download className="w-4 h-4" />
+                      {isDownloadingTicket ? 'Descargando...' : 'Descargar entrada'}
+                    </button>
+                    <button
+                      onClick={handleDownloadTicket}
+                      disabled={isDownloadingTicket || !previewDesign}
+                      className="inline-flex sm:hidden items-center justify-center w-10 h-10 rounded-full bg-blue-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Descargar entrada"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            <div className="bg-gray-800 rounded-xl border border-gray-700 p-3 sm:p-4 lg:p-6 flex flex-col">
+              <h4 className="text-lg font-semibold text-white mb-3">Diseño</h4>
+              <div className="flex-1 overflow-auto flex flex-col items-center">
+                <div
+                  ref={previewRef}
+                  className="flex items-center justify-center min-h-[260px] w-full"
+                >
+                  {isPreviewLoading || !previewDesign ? (
+                    <div className="text-gray-400 text-sm">Cargando vista previa...</div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

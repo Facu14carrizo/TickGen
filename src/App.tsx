@@ -66,8 +66,8 @@ function App() {
               }`}
             >
               <List className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="hidden sm:inline">Ver Todas</span>
-              <span className="sm:hidden">Ver</span>
+              <span className="hidden sm:inline">Registros</span>
+              <span className="sm:hidden">Regs</span>
             </button>
           </div>
         </div>

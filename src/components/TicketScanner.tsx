@@ -167,7 +167,6 @@ export default function TicketScanner({ onTicketValidated }: TicketScannerProps)
   const stopScanning = () => {
     scanner.stopScanning();
     setIsScanning(false);
-    setContinuousMode(false);
   };
 
   const validateTicket = async (code: string, shouldStop: boolean = true) => {

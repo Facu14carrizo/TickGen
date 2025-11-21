@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   generateUniqueCode,
@@ -10,7 +10,7 @@ import {
   TicketQRSize,
   TicketDesignOptions,
 } from '../lib/ticketGenerator';
-import { Ticket, Upload, Download, Loader, Monitor, Smartphone, MoveRight, MoveLeft, Palette, Type, Image as ImageIcon, Eye, EyeOff } from 'lucide-react';
+import { Ticket, Upload, Download, Loader, Monitor, Smartphone, MoveRight, MoveLeft, Palette, Type, Image as ImageIcon, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
 
 interface TicketGeneratorProps {
   onGenerated?: () => void;
@@ -37,6 +37,24 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
   const [qrBorderStyle, setQrBorderStyle] = useState<'none' | 'rounded' | 'square'>('rounded');
   const [previewQr, setPreviewQr] = useState<string>('');
   const previewRef = useRef<HTMLDivElement>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const feedbackTimeoutRef = useRef<number>();
+  const showFeedback = (type: 'success' | 'error', message: string) => {
+    if (feedbackTimeoutRef.current) {
+      window.clearTimeout(feedbackTimeoutRef.current);
+    }
+    setFeedback({ type, message });
+    feedbackTimeoutRef.current = window.setTimeout(() => {
+      setFeedback(null);
+    }, 5000);
+  };
+  useEffect(() => {
+    return () => {
+      if (feedbackTimeoutRef.current) {
+        window.clearTimeout(feedbackTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const formatEventDate = (value: string) => {
     if (!value) return 'Fecha por confirmar';
@@ -61,6 +79,31 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
       reader.readAsDataURL(file);
     }
   };
+
+  const updatePreviewScale = useCallback(() => {
+    if (!previewRef.current) return;
+    const container = previewRef.current;
+    const previewContent = container.querySelector('[data-preview-content]') as HTMLElement | null;
+    const ticketElement = previewContent?.querySelector('[data-preview-ticket-root]') as HTMLElement | null;
+
+    if (!previewContent || !ticketElement) return;
+
+    const containerWidth = container.clientWidth - 24;
+    const ticketWidth = ticketElement.offsetWidth;
+    const ticketHeight = ticketElement.offsetHeight;
+
+    if (!ticketWidth || !ticketHeight) return;
+
+    const scale = Math.min(1, containerWidth / ticketWidth);
+    const scaledHeight = ticketHeight * scale;
+
+    previewContent.style.transform = `scale(${scale})`;
+    previewContent.style.transformOrigin = 'top center';
+    previewContent.style.width = `${ticketWidth}px`;
+    previewContent.style.height = `${scaledHeight}px`;
+    previewContent.style.willChange = 'transform';
+    container.style.minHeight = `${scaledHeight + 24}px`;
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -108,7 +151,19 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
       designOptions
     );
     container.innerHTML = '';
-    container.appendChild(ticketElement);
+    const wrapper = document.createElement('div');
+    wrapper.dataset.previewContent = 'true';
+    wrapper.style.display = 'inline-block';
+    wrapper.style.transition = 'transform 0.2s ease';
+
+    ticketElement.dataset.previewTicketRoot = 'true';
+
+    wrapper.appendChild(ticketElement);
+    container.appendChild(wrapper);
+
+    requestAnimationFrame(() => {
+      updatePreviewScale();
+    });
   }, [
     previewQr,
     eventName,
@@ -127,7 +182,17 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
     overlayOpacity,
     showTicketNumber,
     qrBorderStyle,
+    updatePreviewScale,
   ]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      updatePreviewScale();
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [updatePreviewScale]);
 
   const generateTickets = async () => {
     if (!eventName || !eventDate) {
@@ -225,7 +290,7 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
 
       document.body.removeChild(tempContainer);
 
-      alert(`¡${quantity} entrada(s) generada(s) exitosamente!`);
+      showFeedback('success', `¡${quantity} entrada${quantity === 1 ? '' : 's'} generada${quantity === 1 ? '' : 's'} exitosamente!`);
 
       setEventName('');
       setEventDescription('');
@@ -236,7 +301,7 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
       if (onGenerated) onGenerated();
     } catch (error) {
       console.error('Error generating tickets:', error);
-      alert('Error al generar las entradas. Por favor intenta nuevamente.');
+      showFeedback('error', 'Error al generar las entradas. Por favor intenta nuevamente.');
     } finally {
       setIsGenerating(false);
       setProgress(0);
@@ -645,10 +710,10 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
                 {orientation === 'landscape' ? 'Horizontal' : 'Vertical'}
               </span>
             </div>
-            <div className="w-full flex justify-center overflow-auto">
+            <div className="w-full flex justify-center overflow-auto px-2">
               <div
                 ref={previewRef}
-                className="min-h-[220px] flex items-center justify-center"
+                className="min-h-[220px] w-full flex items-start justify-center overflow-hidden"
               >
                 {!previewQr && (
                   <div className="text-gray-400 text-sm">Generando vista previa...</div>
@@ -674,23 +739,49 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
             </div>
           )}
 
-          <button
-            onClick={generateTickets}
-            disabled={isGenerating}
-            className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 sm:py-4 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2 sm:gap-3 text-sm sm:text-base"
-          >
-            {isGenerating ? (
-              <>
-                <Loader className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
-                Generando...
-              </>
-            ) : (
-              <>
-                <Download className="w-5 h-5 sm:w-6 sm:h-6" />
-                Generar {quantity} Entrada(s)
-              </>
+          <div className="space-y-4">
+            <button
+              onClick={generateTickets}
+              disabled={isGenerating}
+              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 sm:py-4 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2 sm:gap-3 text-sm sm:text-base"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
+                  Generando...
+                </>
+              ) : (
+                <>
+                  <Download className="w-5 h-5 sm:w-6 sm:h-6" />
+                  Generar {quantity} Entrada(s)
+                </>
+              )}
+            </button>
+
+            {feedback && (
+              <div
+                className={`rounded-xl border-2 px-4 py-3 sm:py-4 text-sm sm:text-base font-semibold flex items-center gap-3 shadow-lg transition-all ${
+                  feedback.type === 'success'
+                    ? 'bg-green-900/80 border-green-600 text-green-100'
+                    : 'bg-red-900/80 border-red-600 text-red-100'
+                }`}
+              >
+                {feedback.type === 'success' ? (
+                  <CheckCircle className="w-5 h-5 text-green-300" />
+                ) : (
+                  <XCircle className="w-5 h-5 text-red-300" />
+                )}
+                <span>{feedback.message}</span>
+                <button
+                  type="button"
+                  onClick={() => setFeedback(null)}
+                  className="ml-auto text-xs uppercase tracking-wide text-white/80 hover:text-white"
+                >
+                  Cerrar
+                </button>
+              </div>
             )}
-          </button>
+          </div>
         </div>
       </div>
     </div>
