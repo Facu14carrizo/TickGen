@@ -80,9 +80,20 @@ function App() {
       </main>
 
       <footer className="bg-gray-800 border-t-2 border-gray-700 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-          <p className="text-center text-gray-400 text-xs sm:text-sm">
-            Sistema de Gestión de Entradas Digitales - Seguro, Eficiente y Profesional
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-gray-400 text-xs sm:text-sm text-center sm:text-left">
+            Sistema de Gestión de Entradas Digitales — Seguro, eficiente y profesional
+          </p>
+          <p className="text-gray-400 text-xs sm:text-sm">
+            Desarrollado por{' '}
+            <a
+              href="https://waveframe.com.ar"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 font-semibold"
+            >
+              Waveframe
+            </a>
           </p>
         </div>
       </footer>
