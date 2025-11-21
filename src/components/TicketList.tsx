@@ -305,11 +305,20 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
         previewDesign.designOptions
       );
 
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.top = '0';
+      document.body.appendChild(tempContainer);
+      tempContainer.appendChild(element);
+
       await downloadTicketAsImage(
         element,
         `ticket-${previewTicket.ticket_number}.pdf`,
         previewTicket.events.name
       );
+
+      document.body.removeChild(tempContainer);
     } catch (error) {
       console.error('Error downloading ticket:', error);
       alert('No se pudo descargar la entrada. Intenta nuevamente.');
