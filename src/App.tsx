@@ -92,7 +92,7 @@ function App() {
               rel="noopener noreferrer"
               className="text-blue-400 hover:text-blue-300 font-semibold"
             >
-              Waveframe
+              Waveframe Studio
             </a>
           </p>
         </div>
