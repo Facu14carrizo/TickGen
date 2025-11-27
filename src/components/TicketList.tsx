@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Ticket, Calendar, Hash, CheckCircle, Clock, Trash2, RefreshCcw, Square, CheckSquare2, Eye, X, Download } from 'lucide-react';
-import { createTicketElement, generateQRCode, TicketOrientation, TicketQRPosition, TicketDesignOptions, downloadTicketAsImage } from '../lib/ticketGenerator';
+import { createTicketElement, generateQRCode, TicketOrientation, TicketQRPosition, TicketQRSize, TicketDesignOptions, downloadTicketAsImage } from '../lib/ticketGenerator';
 
 interface TicketWithEvent {
   id: string;
@@ -193,14 +193,20 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
         minute: '2-digit',
       });
 
+      // Cargar todas las opciones de diseño desde la base de datos
       const designOptions: TicketDesignOptions = {
-        backgroundColor: '#1f2937',
-        accentColor: '#3b82f6',
-        textColor: '#ffffff',
-        qrSize: 'medium',
-        overlayOpacity: designData?.background_image ? 0.55 : 0,
-        showTicketNumber: true,
-        qrBorderStyle: 'rounded',
+        backgroundColor: designData?.background_color || '#667eea',
+        accentColor: designData?.accent_color || '#764ba2',
+        textColor: designData?.text_color || '#ffffff',
+        qrSize: (designData?.qr_size as TicketQRSize) || 'medium',
+        titleFontSize: designData?.title_font_size || undefined,
+        subtitleFontSize: designData?.subtitle_font_size || undefined,
+        overlayOpacity: designData?.overlay_opacity ?? (designData?.background_image ? 0.55 : 0),
+        showTicketNumber: designData?.show_ticket_number ?? true,
+        showEventDate: designData?.show_event_date ?? true,
+        showEventTitle: designData?.show_event_title ?? true,
+        showEventDescription: designData?.show_event_description ?? true,
+        qrBorderStyle: (designData?.qr_border_style as 'none' | 'rounded' | 'square') || 'rounded',
       };
 
       setPreviewTicket({
@@ -208,14 +214,30 @@ export default function TicketList({ refreshKey = 0 }: TicketListProps) {
         totalTickets: totalCountRes?.count || undefined,
       });
 
+      // Verificar que orientation y qr_position existan en los datos
+      // Si no existen o son null, usar valores por defecto
+      const savedOrientation = designData?.orientation;
+      const savedQrPosition = designData?.qr_position;
+      
+      // Validar que los valores sean válidos
+      const validOrientation: TicketOrientation = 
+        (savedOrientation === 'portrait' || savedOrientation === 'landscape') 
+          ? savedOrientation 
+          : 'portrait';
+      
+      const validQrPosition: TicketQRPosition = 
+        (savedQrPosition === 'start' || savedQrPosition === 'end') 
+          ? savedQrPosition 
+          : 'end';
+
       setPreviewDesign({
         title,
         subtitle,
         dateText,
         qrDataUrl,
         backgroundImage: designData?.background_image || undefined,
-        orientation: 'landscape',
-        qrPosition: 'end',
+        orientation: validOrientation,
+        qrPosition: validQrPosition,
         designOptions,
       });
     } catch (error) {

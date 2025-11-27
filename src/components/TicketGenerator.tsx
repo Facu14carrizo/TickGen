@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { gsap } from 'gsap';
 import {
   generateUniqueCode,
   generateQRCode,
@@ -41,7 +40,6 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
   const [showEventTitle, setShowEventTitle] = useState(true);
   const [showEventDescription, setShowEventDescription] = useState(true);
   const previewRef = useRef<HTMLDivElement>(null);
-  const previewContainerRef = useRef<HTMLDivElement>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const feedbackTimeoutRef = useRef<number>();
   const showFeedback = (type: 'success' | 'error', message: string) => {
@@ -205,60 +203,6 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
     return () => window.removeEventListener('resize', handleResize);
   }, [updatePreviewScale]);
 
-  // Sincronizar vista previa con el scroll usando GSAP
-  useEffect(() => {
-    if (!previewContainerRef.current) return;
-
-    // Forzar que el contenedor esté en el flujo normal del documento
-    gsap.set(previewContainerRef.current, {
-      clearProps: 'all'
-    });
-
-    gsap.set(previewContainerRef.current, {
-      position: 'relative',
-      top: 'auto',
-      left: 'auto',
-      right: 'auto',
-      bottom: 'auto',
-      transform: 'none',
-      willChange: 'auto'
-    });
-
-    // Crear una animación que se actualice con el scroll
-    const updatePosition = () => {
-      if (previewContainerRef.current) {
-        // Asegurar que siempre esté en posición relativa
-        const computedStyle = window.getComputedStyle(previewContainerRef.current);
-        if (computedStyle.position === 'fixed' || computedStyle.position === 'sticky' || computedStyle.position === 'absolute') {
-          gsap.set(previewContainerRef.current, {
-            position: 'relative',
-            top: 'auto',
-            left: 'auto'
-          });
-        }
-      }
-    };
-
-    // Escuchar eventos de scroll y actualizar
-    const handleScroll = () => {
-      requestAnimationFrame(updatePosition);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('wheel', handleScroll, { passive: true });
-    window.addEventListener('touchmove', handleScroll, { passive: true });
-
-    // Verificar periódicamente
-    const interval = setInterval(updatePosition, 100);
-
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('wheel', handleScroll);
-      window.removeEventListener('touchmove', handleScroll);
-      clearInterval(interval);
-    };
-  }, []);
-
   const generateTickets = async () => {
     if (!eventName || !eventDate) {
       alert('Por favor completa todos los campos requeridos');
@@ -281,6 +225,7 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
 
       if (eventError) throw eventError;
 
+      // Guardar el diseño con todas las configuraciones
       const { data: designData, error: designError } = await supabase
         .from('ticket_designs')
         .insert({
@@ -288,6 +233,20 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
           title: eventName,
           subtitle: eventDescription,
           background_image: backgroundImage,
+          orientation: orientation,
+          qr_position: qrPosition,
+          background_color: backgroundColor,
+          accent_color: accentColor,
+          text_color: textColor,
+          qr_size: qrSize,
+          title_font_size: titleFontSize,
+          subtitle_font_size: subtitleFontSize,
+          overlay_opacity: overlayOpacity,
+          show_ticket_number: showTicketNumber,
+          show_event_date: showEventDate,
+          show_event_title: showEventTitle,
+          show_event_description: showEventDescription,
+          qr_border_style: qrBorderStyle,
         })
         .select()
         .single();
@@ -868,12 +827,11 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
           </div>
 
           <div 
-            ref={previewContainerRef}
             className="w-full lg:w-5/12 xl:w-[480px] flex flex-col gap-4 mt-6 lg:mt-0" 
             style={{ 
-              position: 'relative', 
-              top: 0, 
-              left: 0, 
+              position: 'static', 
+              top: 'auto', 
+              left: 'auto', 
               right: 'auto', 
               bottom: 'auto', 
               zIndex: 'auto',
