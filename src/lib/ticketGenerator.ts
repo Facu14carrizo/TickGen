@@ -16,6 +16,7 @@ export interface TicketDesignOptions {
   subtitleFontSize?: number;
   overlayOpacity?: number;
   showTicketNumber?: boolean;
+  showEventDate?: boolean;
   qrBorderStyle?: 'none' | 'rounded' | 'square';
 }
 
@@ -65,6 +66,7 @@ export const createTicketElement = (
     subtitleFontSize,
     overlayOpacity = backgroundImage ? 0.55 : 0,
     showTicketNumber = true,
+    showEventDate = true,
     qrBorderStyle = 'rounded',
   } = designOptions;
 
@@ -146,22 +148,23 @@ export const createTicketElement = (
     leftSection.insertBefore(logoEl, titleEl);
   }
 
-  const dateEl = document.createElement('div');
-  dateEl.textContent = eventDate;
-  dateEl.style.fontSize = '18px';
-  dateEl.style.fontWeight = '600';
-  dateEl.style.display = 'inline-flex';
-  dateEl.style.alignItems = 'center';
-  dateEl.style.gap = '8px';
-  dateEl.style.padding = '8px 16px';
-  dateEl.style.borderRadius = '16px';
-  dateEl.style.background = 'rgba(0,0,0,0.35)';
-  dateEl.style.border = '1px solid rgba(255,255,255,0.2)';
-  dateEl.style.color = textColor;
-
   leftSection.appendChild(titleEl);
   leftSection.appendChild(subtitleEl);
-  leftSection.appendChild(dateEl);
+  if (showEventDate) {
+    const dateEl = document.createElement('div');
+    dateEl.textContent = eventDate;
+    dateEl.style.fontSize = '18px';
+    dateEl.style.fontWeight = '600';
+    dateEl.style.display = 'inline-flex';
+    dateEl.style.alignItems = 'center';
+    dateEl.style.gap = '8px';
+    dateEl.style.padding = '8px 16px';
+    dateEl.style.borderRadius = '16px';
+    dateEl.style.background = 'rgba(0,0,0,0.35)';
+    dateEl.style.border = '1px solid rgba(255,255,255,0.2)';
+    dateEl.style.color = textColor;
+    leftSection.appendChild(dateEl);
+  }
 
   if (showTicketNumber) {
     const ticketNumberEl = document.createElement('div');

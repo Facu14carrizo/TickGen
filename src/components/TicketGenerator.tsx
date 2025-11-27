@@ -10,7 +10,7 @@ import {
   TicketQRSize,
   TicketDesignOptions,
 } from '../lib/ticketGenerator';
-import { Ticket, Upload, Download, Loader, Monitor, Smartphone, MoveRight, MoveLeft, Palette, Type, Image as ImageIcon, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
+import { Ticket, Upload, Download, Loader, Monitor, Smartphone, MoveRight, MoveLeft, Palette, Type, Image as ImageIcon, Eye, EyeOff, CheckCircle, XCircle, Calendar } from 'lucide-react';
 
 interface TicketGeneratorProps {
   onGenerated?: () => void;
@@ -36,6 +36,7 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
   const [showTicketNumber, setShowTicketNumber] = useState(true);
   const [qrBorderStyle, setQrBorderStyle] = useState<'none' | 'rounded' | 'square'>('rounded');
   const [previewQr, setPreviewQr] = useState<string>('');
+  const [showEventDate, setShowEventDate] = useState(true);
   const previewRef = useRef<HTMLDivElement>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const feedbackTimeoutRef = useRef<number>();
@@ -137,6 +138,7 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
       subtitleFontSize,
       overlayOpacity: backgroundImage ? overlayOpacity : 0,
       showTicketNumber,
+      showEventDate,
       qrBorderStyle,
     };
     const ticketElement = createTicketElement(
@@ -181,6 +183,7 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
     subtitleFontSize,
     overlayOpacity,
     showTicketNumber,
+    showEventDate,
     qrBorderStyle,
     updatePreviewScale,
   ]);
@@ -257,6 +260,7 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
           subtitleFontSize,
           overlayOpacity: backgroundImage ? overlayOpacity : 0,
           showTicketNumber,
+          showEventDate,
           qrBorderStyle,
         };
 
@@ -623,6 +627,25 @@ export default function TicketGenerator({ onGenerated }: TicketGeneratorProps) {
                 Opciones Adicionales
               </h4>
               <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-gray-300 flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Mostrar fecha en la entrada
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowEventDate(!showEventDate)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      showEventDate ? 'bg-blue-600' : 'bg-gray-600'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        showEventDate ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
                 <div className="flex items-center justify-between">
                   <label className="text-sm text-gray-300 flex items-center gap-2">
                     {showTicketNumber ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
