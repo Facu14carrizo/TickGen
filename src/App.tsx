@@ -25,7 +25,7 @@ function App() {
                 <h1 className="text-lg sm:text-2xl font-bold text-white">
                   Sistema de Entradas Digitales
                 </h1>
-                <p className="text-xs sm:text-sm text-gray-400">Gestión profesional para teatro</p>
+                <p className="text-xs sm:text-sm text-gray-400">Gestión profesional de entradas</p>
               </div>
             </div>
           </div>

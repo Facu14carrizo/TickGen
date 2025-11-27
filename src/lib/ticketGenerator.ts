@@ -17,6 +17,8 @@ export interface TicketDesignOptions {
   overlayOpacity?: number;
   showTicketNumber?: boolean;
   showEventDate?: boolean;
+  showEventTitle?: boolean;
+  showEventDescription?: boolean;
   qrBorderStyle?: 'none' | 'rounded' | 'square';
 }
 
@@ -67,6 +69,8 @@ export const createTicketElement = (
     overlayOpacity = backgroundImage ? 0.55 : 0,
     showTicketNumber = true,
     showEventDate = true,
+    showEventTitle = true,
+    showEventDescription = true,
     qrBorderStyle = 'rounded',
   } = designOptions;
 
@@ -148,8 +152,14 @@ export const createTicketElement = (
     leftSection.insertBefore(logoEl, titleEl);
   }
 
-  leftSection.appendChild(titleEl);
-  leftSection.appendChild(subtitleEl);
+  if (showEventTitle) {
+    leftSection.appendChild(titleEl);
+  }
+
+  if (showEventDescription) {
+    leftSection.appendChild(subtitleEl);
+  }
+
   if (showEventDate) {
     const dateEl = document.createElement('div');
     dateEl.textContent = eventDate;
